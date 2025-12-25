@@ -273,6 +273,45 @@ namespace Ext2Read.Core
             }
         }
 
+
+        public List<Ext2FileEntry> SearchFiles(uint dirInodeNum, string searchQuery, string currentPath = "")
+        {
+            var results = new List<Ext2FileEntry>();
+            string query = searchQuery.ToLower();
+
+            // List current directory
+            var files = ListDirectory(dirInodeNum);
+
+            foreach (var file in files)
+            {
+                // Update FullPath
+                if (string.IsNullOrEmpty(currentPath)) file.FullPath = "/" + file.Name;
+                else file.FullPath = currentPath.TrimEnd('/') + "/" + file.Name;
+
+                // Check match
+                if (file.Name.ToLower().Contains(query))
+                {
+                    results.Add(file);
+                }
+
+                // Recurse if directory (skip . and .. which ListDirectory already filters)
+                if (file.IsDirectory)
+                {
+                    // Avoid deep recursion stack overflow? 32k? 
+                    // Ext2 can be deep. iterative might be safer but recursive is easier for now.
+                    // C# limits recursion.
+                    // But ListDirectory filters . and .. so we advance.
+                    try
+                    {
+                        var childResults = SearchFiles(file.InodeNum, searchQuery, file.FullPath);
+                        results.AddRange(childResults);
+                    }
+                    catch (Exception) { /* Skip errors in deep recursion or perm issues */ }
+                }
+            }
+            return results;
+        }
+
         private void WalkExtentNode(byte[] data, int offset, List<ulong> blocks, StringBuilder debug)
         {
             var header = BytesToStruct<EXT4_EXTENT_HEADER>(data, offset);
@@ -337,5 +376,6 @@ namespace Ext2Read.Core
         public uint Uid { get; set; }
         public uint Gid { get; set; }
         public DateTime ModifiedTime { get; set; }
+        public string FullPath { get; set; }
     }
 }

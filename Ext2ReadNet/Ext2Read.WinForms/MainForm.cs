@@ -23,6 +23,10 @@ namespace Ext2Read.WinForms
         private ContextMenuStrip contextMenuStrip1;
         private ToolStripMenuItem saveAsToolStripMenuItem;
         private ToolStripMenuItem copyNameToolStripMenuItem;
+        private ToolStrip toolStrip1;
+        private ToolStripLabel searchLabel;
+        private ToolStripTextBox searchTextBox;
+        private ToolStripButton searchButton;
         private DiskManager _diskManager;
         private List<Ext2FileSystem> _fileSystems = new List<Ext2FileSystem>();
 
@@ -30,6 +34,7 @@ namespace Ext2Read.WinForms
         {
             InitializeComponent();
             InitializeContextMenu();
+            InitializeSearchStrip();
             _diskManager = new DiskManager();
         }
 
@@ -496,6 +501,7 @@ namespace Ext2Read.WinForms
             this.listView1.Columns.Add("Date Modified", 140);
             this.listView1.Columns.Add("Permissions", 100);
             this.listView1.Columns.Add("Owner", 80);
+            this.listView1.Columns.Add("Path", 300);
             this.listView1.SmallImageList = this.imageList1;
 
             // 
@@ -650,6 +656,104 @@ namespace Ext2Read.WinForms
             if ((mode & 0x0001) != 0) perms[9] = 'x';
 
             return new string(perms);
+        }
+
+        private void InitializeSearchStrip()
+        {
+            this.toolStrip1 = new System.Windows.Forms.ToolStrip();
+            this.searchLabel = new System.Windows.Forms.ToolStripLabel();
+            this.searchTextBox = new System.Windows.Forms.ToolStripTextBox();
+            this.searchButton = new System.Windows.Forms.ToolStripButton();
+
+            // toolStrip1
+            this.toolStrip1.Dock = DockStyle.Top;
+            this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.searchLabel,
+            this.searchTextBox,
+            this.searchButton});
+            // Make sure it's below MenuStrip (MenuStrip is typically Top too, order matters in Controls.Add)
+            // But we can just Add it.
+
+            this.searchLabel.Text = "Search:";
+            this.searchTextBox.Size = new System.Drawing.Size(200, 25);
+            this.searchButton.Text = "Go";
+            this.searchButton.Click += new System.EventHandler(this.searchButton_Click);
+
+            this.Controls.Add(this.toolStrip1);
+            // Ensure correct Z-order (ToolStrip below MenuStrip)
+            this.toolStrip1.BringToFront(); // Actually we want it below Menu.
+            // MenuStrip (if Dock=Top) should stay at top. 
+            // In Windows Forms, last added Control with Dock=Top is at bottom of Top stack?
+            // Actually, usually reverse order of addition.
+            // MenuStrip was added early.
+            // I'll assume Controls.Add works fine or I'll check.
+            // Controls.setChildIndex can fix it.
+            this.Controls.SetChildIndex(this.toolStrip1, 1);
+        }
+
+        private async void searchButton_Click(object sender, EventArgs e)
+        {
+            string query = searchTextBox.Text;
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                MessageBox.Show("Please enter a search term.");
+                return;
+            }
+
+            if (treeView1.SelectedNode == null || treeView1.SelectedNode.Tag == null)
+            {
+                // Fallback to first Node if nothing selected (Root of first FS)
+                if (treeView1.Nodes.Count > 0 && treeView1.Nodes[0].Tag != null)
+                {
+                    treeView1.SelectedNode = treeView1.Nodes[0];
+                }
+                else
+                {
+                    MessageBox.Show("Please select a partition or folder to search in.");
+                    return;
+                }
+            }
+
+            var data = treeView1.SelectedNode.Tag as NodeData;
+            uint startInode = data.Inode;
+
+            listView1.Items.Clear();
+            listView1.Items.Add(new ListViewItem("Searching..."));
+            searchButton.Enabled = false;
+
+            try
+            {
+                var results = await System.Threading.Tasks.Task.Run(() => data.FileSystem.SearchFiles(startInode, query, ""));
+
+                listView1.Items.Clear();
+                listView1.BeginUpdate();
+                foreach (var file in results)
+                {
+                    ListViewItem item = new ListViewItem(file.Name);
+                    // Update Tag
+                    item.Tag = new NodeData { FileSystem = data.FileSystem, Inode = file.InodeNum, Name = file.Name };
+                    item.ImageIndex = file.IsDirectory ? 1 : 2;
+
+                    item.SubItems.Add(file.IsDirectory ? "" : FormatBytes(file.Size));
+                    item.SubItems.Add(file.IsDirectory ? "Directory" : "File");
+                    item.SubItems.Add(file.ModifiedTime.ToString("g"));
+                    item.SubItems.Add(FormatPermissions(file.Mode));
+                    item.SubItems.Add($"{file.Uid}/{file.Gid}");
+                    item.SubItems.Add(file.FullPath); // Added Path
+
+                    listView1.Items.Add(item);
+                }
+                listView1.EndUpdate();
+                MessageBox.Show($"Found {results.Count} items.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error searching: " + ex.Message);
+            }
+            finally
+            {
+                searchButton.Enabled = true;
+            }
         }
     }
 
