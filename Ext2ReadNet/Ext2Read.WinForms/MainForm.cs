@@ -17,6 +17,8 @@ namespace Ext2Read.WinForms
         private ToolStripMenuItem convertSparseToolStripMenuItem;
         private ToolStripMenuItem otaUnpackerToolStripMenuItem;
         private ToolStripMenuItem autoScanToolStripMenuItem;
+        private ToolStripMenuItem helpToolStripMenuItem;
+        private ToolStripMenuItem aboutToolStripMenuItem;
         private ToolStripMenuItem exitToolStripMenuItem;
         private SplitContainer splitContainer1;
         private TreeView treeView1;
@@ -374,6 +376,8 @@ namespace Ext2Read.WinForms
             this.convertSparseToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.otaUnpackerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.autoScanToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.helpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.treeView1 = new System.Windows.Forms.TreeView();
             this.listView1 = new System.Windows.Forms.ListView();
@@ -391,7 +395,8 @@ namespace Ext2Read.WinForms
             // 
             this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.fileToolStripMenuItem,
-            this.toolsToolStripMenuItem});
+            this.toolsToolStripMenuItem,
+            this.helpToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.Size = new System.Drawing.Size(800, 24);
@@ -476,6 +481,23 @@ namespace Ext2Read.WinForms
             this.autoScanToolStripMenuItem.Text = "&Auto Scan Physical Drives";
             this.autoScanToolStripMenuItem.CheckOnClick = true;
             this.autoScanToolStripMenuItem.Click += new System.EventHandler(this.autoScanToolStripMenuItem_Click);
+
+            // 
+            // helpToolStripMenuItem
+            // 
+            this.helpToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.aboutToolStripMenuItem});
+            this.helpToolStripMenuItem.Name = "helpToolStripMenuItem";
+            this.helpToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
+            this.helpToolStripMenuItem.Text = "&Help";
+
+            // 
+            // aboutToolStripMenuItem
+            // 
+            this.aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
+            this.aboutToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.aboutToolStripMenuItem.Text = "&About Ext2Read .NET";
+            this.aboutToolStripMenuItem.Click += new System.EventHandler(this.aboutToolStripMenuItem_Click);
 
             // 
             // splitContainer1
@@ -830,6 +852,14 @@ namespace Ext2Read.WinForms
             using (var form = new OtaUnpackerForm())
             {
                 form.ShowDialog(this);
+            }
+        }
+
+        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var about = new AboutBox())
+            {
+                about.ShowDialog(this);
             }
         }
     }
