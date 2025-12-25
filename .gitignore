@@ -5,6 +5,8 @@ obj/
 *.pdb
 *.exe
 
+TEMP/*
+
 # Visual Studio
 .vs/
 .vscode/
