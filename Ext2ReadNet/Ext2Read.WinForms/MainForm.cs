@@ -11,6 +11,7 @@ namespace Ext2Read.WinForms
         private MenuStrip menuStrip1;
         private ToolStripMenuItem fileToolStripMenuItem;
         private ToolStripMenuItem openImageToolStripMenuItem;
+        private ToolStripMenuItem closeImageToolStripMenuItem;
         private ToolStripMenuItem rescanToolStripMenuItem;
         private ToolStripMenuItem toolsToolStripMenuItem;
         private ToolStripMenuItem convertSparseToolStripMenuItem;
@@ -35,6 +36,7 @@ namespace Ext2Read.WinForms
             InitializeComponent();
             InitializeContextMenu();
             InitializeSearchStrip();
+            InitializeCloseImageMenu();
             _diskManager = new DiskManager();
         }
 
@@ -753,6 +755,54 @@ namespace Ext2Read.WinForms
             finally
             {
                 searchButton.Enabled = true;
+            }
+        }
+
+        private void InitializeCloseImageMenu()
+        {
+            this.closeImageToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.closeImageToolStripMenuItem.Name = "closeImageToolStripMenuItem";
+            this.closeImageToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.closeImageToolStripMenuItem.Text = "Close Image";
+            this.closeImageToolStripMenuItem.Click += new System.EventHandler(this.closeImageToolStripMenuItem_Click);
+
+            // Insert after Open Image (Index 0 is Open, Index 1 will be Close)
+            // Need to verify index. usually:
+            // 0: Open
+            // 1: Rescan
+            // 2: Exit
+            // So Insert at 1.
+            if (this.fileToolStripMenuItem.DropDownItems.Count > 0)
+            {
+                this.fileToolStripMenuItem.DropDownItems.Insert(1, this.closeImageToolStripMenuItem);
+            }
+            else
+            {
+                this.fileToolStripMenuItem.DropDownItems.Add(this.closeImageToolStripMenuItem);
+            }
+        }
+
+        private async void closeImageToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Clear UI
+            treeView1.Nodes.Clear();
+            listView1.Items.Clear();
+            _fileSystems.Clear();
+
+            // Release handles
+            if (_diskManager != null)
+            {
+                _diskManager.Dispose();
+            }
+            _diskManager = new DiskManager();
+
+            // Rescan physical drives if option enabled
+            // Or just leave empty to let user decide?
+            // "Close Image" implies returning to base state.
+            // If AutoScan is on, base state includes physical drives.
+            if (AppSettings.Instance.AutoScanOnStartup)
+            {
+                await ScanDisksAsync();
             }
         }
     }
