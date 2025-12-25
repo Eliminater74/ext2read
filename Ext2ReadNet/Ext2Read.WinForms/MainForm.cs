@@ -176,9 +176,67 @@ namespace Ext2Read.WinForms
                 ofd.Filter = "Disk Images (*.img;*.iso;*.bin)|*.img;*.iso;*.bin|All files (*.*)|*.*";
                 if (ofd.ShowDialog() == DialogResult.OK)
                 {
+                    string fileToOpen = ofd.FileName;
+
+                    // Check for Android Sparse Image
+                    if (SparseConverter.IsSparseImage(fileToOpen))
+                    {
+                        var result = MessageBox.Show(
+                            "This appears to be an Android Sparse Image. It must be converted to a raw image to be read.\n\nDo you want to convert it now?",
+                            "Sparse Image Detected",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question);
+
+                        if (result == DialogResult.Yes)
+                        {
+                            using (SaveFileDialog sfd = new SaveFileDialog())
+                            {
+                                sfd.Filter = "Raw Disk Image (*.img)|*.img";
+                                sfd.FileName = Path.GetFileNameWithoutExtension(fileToOpen) + "_raw.img";
+                                if (sfd.ShowDialog() == DialogResult.OK)
+                                {
+                                    // Run conversion
+                                    // TODO: Show proper progress dialog. For now, using title bar or specialized node
+                                    var loadingNode = new TreeNode("Converting sparse image... Please wait.");
+                                    treeView1.Nodes.Add(loadingNode);
+                                    treeView1.Enabled = false;
+
+                                    try
+                                    {
+                                        await System.Threading.Tasks.Task.Run(() =>
+                                            SparseConverter.Convert(fileToOpen, sfd.FileName, null));
+
+                                        MessageBox.Show("Conversion complete!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                        fileToOpen = sfd.FileName; // Switch to opening the new file
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        MessageBox.Show($"Conversion failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                        treeView1.Nodes.Remove(loadingNode);
+                                        treeView1.Enabled = true;
+                                        return;
+                                    }
+                                    finally
+                                    {
+                                        treeView1.Nodes.Remove(loadingNode);
+                                        treeView1.Enabled = true;
+                                    }
+                                }
+                                else
+                                {
+                                    return; // User cancelled save
+                                }
+                            }
+                        }
+                        else
+                        {
+                            return; // User cancelled conversion
+                        }
+                    }
+
                     try
                     {
-                        var partitions = await System.Threading.Tasks.Task.Run(() => _diskManager.ScanImage(ofd.FileName));
+                        var partitions = await System.Threading.Tasks.Task.Run(() => _diskManager.ScanImage(fileToOpen));
                         if (partitions.Count == 0)
                         {
                             MessageBox.Show("No Linux Ext2/3/4 partitions found in image.", "Ext2Read", MessageBoxButtons.OK, MessageBoxIcon.Information);
