@@ -121,10 +121,6 @@ namespace Ext2Read.WinForms
                 // Back on UI thread
                 parentNode.Nodes.Clear(); // Remove "Loading..."
 
-                if (files.Count == 0 && data.Inode == 2)
-                {
-                    MessageBox.Show($"Debug Info for Root Directory:\n{data.FileSystem.LastDebugMessage}", "Empty Directory Debug");
-                }
 
                 foreach (var file in files)
                 {
