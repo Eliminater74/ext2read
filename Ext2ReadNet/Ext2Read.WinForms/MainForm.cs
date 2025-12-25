@@ -20,12 +20,16 @@ namespace Ext2Read.WinForms
         private TreeView treeView1;
         private ListView listView1;
         private ImageList imageList1;
+        private ContextMenuStrip contextMenuStrip1;
+        private ToolStripMenuItem saveAsToolStripMenuItem;
+        private ToolStripMenuItem copyNameToolStripMenuItem;
         private DiskManager _diskManager;
         private List<Ext2FileSystem> _fileSystems = new List<Ext2FileSystem>();
 
         public MainForm()
         {
             InitializeComponent();
+            InitializeContextMenu();
             _diskManager = new DiskManager();
         }
 
@@ -164,6 +168,8 @@ namespace Ext2Read.WinForms
                 foreach (var file in files)
                 {
                     ListViewItem item = new ListViewItem(file.Name);
+                    // Store FileSystem and Inode in Tag for Context Menu operations
+                    item.Tag = new NodeData { FileSystem = data.FileSystem, Inode = file.InodeNum, Name = file.Name };
                     item.ImageIndex = file.IsDirectory ? 1 : 2; // Folder or File
                     if (file.IsDirectory) item.SubItems.Add("Directory");
                     else item.SubItems.Add("File");
@@ -508,11 +514,88 @@ namespace Ext2Read.WinForms
             }
             base.Dispose(disposing);
         }
+        private void InitializeContextMenu()
+        {
+            this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip();
+            this.saveAsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.copyNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+
+            this.contextMenuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.saveAsToolStripMenuItem,
+            this.copyNameToolStripMenuItem});
+            this.contextMenuStrip1.Name = "contextMenuStrip1";
+            this.contextMenuStrip1.Size = new System.Drawing.Size(180, 48);
+
+            // saveAsToolStripMenuItem
+            this.saveAsToolStripMenuItem.Name = "saveAsToolStripMenuItem";
+            this.saveAsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.saveAsToolStripMenuItem.Text = "Save As...";
+            this.saveAsToolStripMenuItem.Click += new System.EventHandler(this.saveAsToolStripMenuItem_Click);
+
+            // copyNameToolStripMenuItem
+            this.copyNameToolStripMenuItem.Name = "copyNameToolStripMenuItem";
+            this.copyNameToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.copyNameToolStripMenuItem.Text = "Copy Filename";
+            this.copyNameToolStripMenuItem.Click += new System.EventHandler(this.copyNameToolStripMenuItem_Click);
+
+            // Bind to ListView
+            this.listView1.ContextMenuStrip = this.contextMenuStrip1;
+        }
+
+        private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (this.listView1.SelectedItems.Count == 0) return;
+
+            var item = this.listView1.SelectedItems[0];
+            var data = item.Tag as NodeData;
+            if (data == null) return;
+
+            // TODO: Check if directory? For now only files.
+            // NodeData doesn't explicitly store isDirectory but we can check Icon or similar.
+            // Or assume user knows what they are doing.
+            // But reading a directory as file gives garbage.
+            // We can check item.ImageIndex == 2 (File).
+
+            if (item.ImageIndex == 1) // Dictionary
+            {
+                MessageBox.Show("Folder copying is not yet supported.", "Info");
+                return;
+            }
+
+            using (SaveFileDialog sfd = new SaveFileDialog())
+            {
+                sfd.FileName = data.Name ?? item.Text;
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        using (var fs = new System.IO.FileStream(sfd.FileName, System.IO.FileMode.Create, System.IO.FileAccess.Write))
+                        {
+                            // Call FileSystem ReadFile
+                            data.FileSystem.ReadFile(data.Inode, fs);
+                        }
+                        MessageBox.Show("File saved successfully!", "Success");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error saving file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void copyNameToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (this.listView1.SelectedItems.Count == 0) return;
+            var item = this.listView1.SelectedItems[0];
+            Clipboard.SetText(item.Text);
+        }
     }
 
     class NodeData
     {
         public Ext2FileSystem FileSystem { get; set; }
         public uint Inode { get; set; }
+        public string Name { get; set; }
     }
 }

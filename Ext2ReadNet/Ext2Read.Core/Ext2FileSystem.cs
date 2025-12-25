@@ -218,6 +218,50 @@ namespace Ext2Read.Core
             return blocks;
         }
 
+        public void ReadFile(uint inodeNum, System.IO.Stream outputStream)
+        {
+            var inode = ReadInode(inodeNum);
+            // Support 64-bit file size
+            long size = inode.i_size | ((long)inode.i_size_high << 32);
+
+            // Check if it's a regular file or link. 
+            // If it's a directory, we shouldn't really "read" it as a stream, but user might want to debug.
+
+            List<ulong> blocks = GetDataBlocks(inode);
+            long remaining = size;
+
+            foreach (ulong blockNum in blocks)
+            {
+                if (remaining <= 0) break;
+
+                int toRead = (int)Math.Min(_blockSize, remaining);
+
+                if (blockNum == 0) // Sparse
+                {
+                    // Write zeros efficiently
+                    // For very large sparse holes, allocating buffer might be slow, but _blockSize is small (4k usually).
+                    byte[] zeros = new byte[toRead];
+                    outputStream.Write(zeros, 0, toRead);
+                }
+                else
+                {
+                    byte[] data = _partition.ReadBlock(blockNum, _blockSize);
+                    if (data != null)
+                    {
+                        outputStream.Write(data, 0, toRead);
+                    }
+                    else
+                    {
+                        // Read error, fill with zeros or throw?
+                        // Filling with zeros to preserve offset
+                        byte[] zeros = new byte[toRead];
+                        outputStream.Write(zeros, 0, toRead);
+                    }
+                }
+                remaining -= toRead;
+            }
+        }
+
         private void WalkExtentNode(byte[] data, int offset, List<ulong> blocks, StringBuilder debug)
         {
             var header = BytesToStruct<EXT4_EXTENT_HEADER>(data, offset);
