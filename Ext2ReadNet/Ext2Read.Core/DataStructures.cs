@@ -10,11 +10,15 @@ namespace Ext2Read.Core
         public const int EXT2_MAX_BLOCK_SIZE = 4096;
         public const int EXT2_N_BLOCKS = 15;
         public const int EXT2_NAME_LEN = 255;
-        
+
         // Inode Modes
         public const ushort S_IFMT = 0xF000;
         public const ushort S_IFDIR = 0x4000;
         public const ushort S_IFREG = 0x8000;
+
+        // Features
+        public const uint EXT4_EXTENTS_FL = 0x80000;
+        public const ushort EXT4_EXTENT_HEADER_MAGIC = 0xF30A;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -53,21 +57,21 @@ namespace Ext2Read.Core
         public uint s_feature_compat;    /* compatible feature set */
         public uint s_feature_incompat;  /* incompatible feature set */
         public uint s_feature_ro_compat; /* readonly-compatible feature set */
-        
+
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
         public byte[] s_uuid;          /* 128-bit uuid for volume */
-        
+
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 16)]
         public string s_volume_name;     /* volume name */
-        
+
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
         public string s_last_mounted;    /* directory where last mounted */
-        
+
         public uint s_algorithm_usage_bitmap; /* For compression */
         public byte s_prealloc_blocks;   /* Nr of blocks to try to preallocate*/
         public byte s_prealloc_dir_blocks; /* Nr to preallocate for dirs */
         public ushort s_padding1;
-        
+
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 204)]
         public uint[] s_reserved;        /* unused */
     }
@@ -82,7 +86,7 @@ namespace Ext2Read.Core
         public ushort bg_free_inodes_count; /* number of free inodes in the */
         public ushort bg_used_dirs_count;   /* number of inodes allocated to directories */
         public ushort bg_pad;             /* padding */
-        
+
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
         public uint[] bg_reserved;        /* reserved */
     }
@@ -101,17 +105,17 @@ namespace Ext2Read.Core
         public ushort i_links_count; /* Links count */
         public uint i_blocks;        /* Blocks count */
         public uint i_flags;         /* File flags */
-        
+
         public uint osd1;            /* OS dependent 1 */
-        
+
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 15)] // EXT2_N_BLOCKS
         public uint[] i_block;       /* Pointers to blocks */
-        
+
         public uint i_generation;    /* File version (for NFS) */
         public uint i_file_acl;      /* File ACL */
         public uint i_size_high;     /* This is used store the high 32 bit of file size in large files */
         public uint i_faddr;         /* Fragment address */
-        
+
         public ushort l_i_blocks_hi; /* High 16 bits of block count */
         public ushort l_i_file_acl_high;
         public ushort l_i_uid_high;  /* these 2 fields */
@@ -128,5 +132,33 @@ namespace Ext2Read.Core
         public byte name_len;       /* Name length */
         public byte filetype;       /* File type */
         // Name follows immediately, variable length
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct EXT4_EXTENT_HEADER
+    {
+        public ushort eh_magic;      /* probable magic number - 0xF30A */
+        public ushort eh_entries;    /* number of valid entries */
+        public ushort eh_max;        /* capacity of store in entries */
+        public ushort eh_depth;      /* has tree real underlying blocks? */
+        public uint eh_generation;   /* generation of the tree */
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct EXT4_EXTENT
+    {
+        public uint ee_block;       /* first logical block extent covers */
+        public ushort ee_len;       /* number of blocks covered by extent */
+        public ushort ee_start_hi;  /* high 16 bits of physical block */
+        public uint ee_start_lo;    /* low 32 bits of physical block */
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct EXT4_EXTENT_IDX
+    {
+        public uint ei_block;       /* index covers logical blocks from 'block' */
+        public uint ei_leaf_lo;     /* pointer to the physical block of the next level. leaf or next index */
+        public ushort ei_leaf_hi;   /* high 16 bits of physical block */
+        public ushort ei_unused;
     }
 }

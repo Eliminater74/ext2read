@@ -106,16 +106,20 @@ namespace Ext2Read.Core
             StringBuilder debug = new StringBuilder();
             debug.AppendLine($"Listing Inode {dirInodeNum}: Size={inode.i_size}, Blocks={inode.i_blocks}, nBlocks={nBlocks}");
 
-            for (int i = 0; i < 12 && i < nBlocks; i++) // Direct blocks
+            List<ulong> dataBlocks = GetDataBlocks(inode, debug);
+            debug.AppendLine($"Resolved {dataBlocks.Count} physical blocks.");
+
+            for (int i = 0; i < dataBlocks.Count && i < nBlocks; i++)
             {
-                if (inode.i_block[i] == 0)
+                ulong blockNum = dataBlocks[i];
+                if (blockNum == 0)
                 {
-                    debug.AppendLine($"Block[{i}] is 0. Ending.");
-                    break;
+                    debug.AppendLine($"Block[{i}] is 0 (Sparse). Skipping.");
+                    continue;
                 }
 
-                debug.AppendLine($"Reading Block[{i}] @ {inode.i_block[i]}");
-                byte[] block = _partition.ReadBlock(inode.i_block[i], _blockSize);
+                debug.AppendLine($"Reading Block[{i}] @ {blockNum}");
+                byte[] block = _partition.ReadBlock(blockNum, _blockSize);
                 if (block == null)
                 {
                     debug.AppendLine("ReadBlock returned null.");
@@ -175,6 +179,80 @@ namespace Ext2Read.Core
             }
             LastDebugMessage = debug.ToString();
             return files;
+        }
+
+        private List<ulong> GetDataBlocks(EXT2_INODE inode, StringBuilder debug = null)
+        {
+            var blocks = new List<ulong>();
+
+            // Check for Extents
+            if ((inode.i_flags & Ext2Constants.EXT4_EXTENTS_FL) != 0)
+            {
+                if (debug != null) debug.AppendLine("Inode uses Extents.");
+                // Convert i_block array to byte array
+                byte[] i_block_bytes = new byte[60];
+                Buffer.BlockCopy(inode.i_block, 0, i_block_bytes, 0, 60);
+
+                // Parse Extent Header at offset 0
+                var header = BytesToStruct<EXT4_EXTENT_HEADER>(i_block_bytes, 0);
+                if (header.eh_magic == Ext2Constants.EXT4_EXTENT_HEADER_MAGIC)
+                {
+                    WalkExtentNode(i_block_bytes, 0, blocks, debug);
+                }
+                else
+                {
+                    if (debug != null) debug.AppendLine($"Invalid Extent Magic: {header.eh_magic:X4}");
+                }
+            }
+            else
+            {
+                if (debug != null) debug.AppendLine("Inode uses Direct Blocks.");
+                // Direct blocks 0-11
+                for (int i = 0; i < 12; i++)
+                {
+                    if (inode.i_block[i] != 0) blocks.Add(inode.i_block[i]);
+                    else blocks.Add(0); // Sparse
+                }
+                // Indirect blocks omitted for now
+            }
+            return blocks;
+        }
+
+        private void WalkExtentNode(byte[] data, int offset, List<ulong> blocks, StringBuilder debug)
+        {
+            var header = BytesToStruct<EXT4_EXTENT_HEADER>(data, offset);
+
+            // Entries start after header (12 bytes)
+            int entryOffset = offset + 12;
+
+            for (int i = 0; i < header.eh_entries; i++)
+            {
+                if (header.eh_depth == 0) // Leaf
+                {
+                    var extent = BytesToStruct<EXT4_EXTENT>(data, entryOffset);
+                    ulong startBlock = ((ulong)extent.ee_start_hi << 32) | extent.ee_start_lo;
+                    if (debug != null) debug.AppendLine($"Extent: Logical={extent.ee_block}, Len={extent.ee_len}, Phys={startBlock}");
+
+                    for (int b = 0; b < extent.ee_len; b++)
+                    {
+                        blocks.Add(startBlock + (ulong)b);
+                    }
+                }
+                else // Index
+                {
+                    var idx = BytesToStruct<EXT4_EXTENT_IDX>(data, entryOffset);
+                    ulong leafBlock = ((ulong)idx.ei_leaf_hi << 32) | idx.ei_leaf_lo;
+                    if (debug != null) debug.AppendLine($"Extent Index pointing to block {leafBlock}");
+
+                    // Read index block
+                    byte[] indexBlockData = _partition.ReadBlock(leafBlock, _blockSize);
+                    if (indexBlockData != null)
+                    {
+                        WalkExtentNode(indexBlockData, 0, blocks, debug);
+                    }
+                }
+                entryOffset += 12; // Both Extent and Index are 12 bytes
+            }
         }
 
         private static T BytesToStruct<T>(byte[] bytes, int offset) where T : struct
