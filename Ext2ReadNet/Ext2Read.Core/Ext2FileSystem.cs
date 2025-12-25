@@ -166,11 +166,22 @@ namespace Ext2Read.Core
                         {
                             // Get type info
                             bool isDir = entry.filetype == 2; // 2=DIR
+
+                            // Read Inode for metadata (Size, Permissions, etc.)
+                            EXT2_INODE childInode = ReadInode(entry.inode);
+                            long size = childInode.i_size | ((long)childInode.i_size_high << 32);
+                            DateTime mtime = DateTimeOffset.FromUnixTimeSeconds(childInode.i_mtime).LocalDateTime;
+
                             files.Add(new Ext2FileEntry
                             {
                                 Name = name,
                                 InodeNum = entry.inode,
-                                IsDirectory = isDir
+                                IsDirectory = isDir,
+                                Size = size,
+                                Mode = childInode.i_mode,
+                                Uid = childInode.i_uid,
+                                Gid = childInode.i_gid,
+                                ModifiedTime = mtime
                             });
                         }
                     }
@@ -321,5 +332,10 @@ namespace Ext2Read.Core
         public string Name { get; set; }
         public uint InodeNum { get; set; }
         public bool IsDirectory { get; set; }
+        public long Size { get; set; }
+        public uint Mode { get; set; }
+        public uint Uid { get; set; }
+        public uint Gid { get; set; }
+        public DateTime ModifiedTime { get; set; }
     }
 }

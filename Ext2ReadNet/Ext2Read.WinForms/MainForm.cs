@@ -168,11 +168,24 @@ namespace Ext2Read.WinForms
                 foreach (var file in files)
                 {
                     ListViewItem item = new ListViewItem(file.Name);
-                    // Store FileSystem and Inode in Tag for Context Menu operations
                     item.Tag = new NodeData { FileSystem = data.FileSystem, Inode = file.InodeNum, Name = file.Name };
                     item.ImageIndex = file.IsDirectory ? 1 : 2; // Folder or File
+
+                    // Size
+                    item.SubItems.Add(file.IsDirectory ? "" : FormatBytes(file.Size));
+
+                    // Type
                     if (file.IsDirectory) item.SubItems.Add("Directory");
                     else item.SubItems.Add("File");
+
+                    // Date
+                    item.SubItems.Add(file.ModifiedTime.ToString("g"));
+
+                    // Permissions
+                    item.SubItems.Add(FormatPermissions(file.Mode));
+
+                    // Owner
+                    item.SubItems.Add($"{file.Uid}/{file.Gid}");
 
                     listView1.Items.Add(item);
                 }
@@ -478,7 +491,11 @@ namespace Ext2Read.WinForms
             this.listView1.TabIndex = 0;
             this.listView1.View = View.Details;
             this.listView1.Columns.Add("Name", 200);
-            this.listView1.Columns.Add("Type", 100);
+            this.listView1.Columns.Add("Size", 100, HorizontalAlignment.Right);
+            this.listView1.Columns.Add("Type", 80);
+            this.listView1.Columns.Add("Date Modified", 140);
+            this.listView1.Columns.Add("Permissions", 100);
+            this.listView1.Columns.Add("Owner", 80);
             this.listView1.SmallImageList = this.imageList1;
 
             // 
@@ -589,6 +606,50 @@ namespace Ext2Read.WinForms
             if (this.listView1.SelectedItems.Count == 0) return;
             var item = this.listView1.SelectedItems[0];
             Clipboard.SetText(item.Text);
+        }
+
+        private string FormatBytes(long bytes)
+        {
+            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
+            int counter = 0;
+            decimal number = (decimal)bytes;
+            while (Math.Round(number / 1024) >= 1)
+            {
+                number = number / 1024;
+                counter++;
+            }
+            return string.Format("{0:n1} {1}", number, suffixes[counter]);
+        }
+
+        private string FormatPermissions(uint mode)
+        {
+            // Simple rwxr-xr-x format
+            // mode is 16 bits.
+            // 0x4000 = DIR, 0x8000 = REG.
+            // Permission bits are lower 9 bits.
+
+            char[] perms = new char[] { '-', '-', '-', '-', '-', '-', '-', '-', '-', '-' };
+
+            if ((mode & Ext2Constants.S_IFDIR) == Ext2Constants.S_IFDIR) perms[0] = 'd';
+            else if ((mode & Ext2Constants.S_IFREG) == Ext2Constants.S_IFREG) perms[0] = '-';
+            else perms[0] = '?'; // Link, etc.
+
+            // User
+            if ((mode & 0x0100) != 0) perms[1] = 'r';
+            if ((mode & 0x0080) != 0) perms[2] = 'w';
+            if ((mode & 0x0040) != 0) perms[3] = 'x';
+
+            // Group
+            if ((mode & 0x0020) != 0) perms[4] = 'r';
+            if ((mode & 0x0010) != 0) perms[5] = 'w';
+            if ((mode & 0x0008) != 0) perms[6] = 'x';
+
+            // Other
+            if ((mode & 0x0004) != 0) perms[7] = 'r';
+            if ((mode & 0x0002) != 0) perms[8] = 'w';
+            if ((mode & 0x0001) != 0) perms[9] = 'x';
+
+            return new string(perms);
         }
     }
 
