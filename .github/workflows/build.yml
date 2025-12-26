@@ -1,0 +1,44 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore Dependencies
+        run: dotnet restore i:\GITHUB\Projects\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools.sln
+
+      - name: Build (Release)
+        run: dotnet build i:\GITHUB\Projects\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools.sln --configuration Release --no-restore
+
+      - name: Publish WinForms App
+        run: |
+          dotnet publish i:\GITHUB\Projects\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools\PreFusion.WinForms\PreFusion.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
+
+      - name: Create Zip Archive
+        run: |
+          Compress-Archive -Path ./publish/* -DestinationPath ./PreFusion_Firmware_Tools_win-x64.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./PreFusion_Firmware_Tools_win-x64.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

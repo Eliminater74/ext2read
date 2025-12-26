@@ -42,10 +42,12 @@ namespace Ext2Read.WinForms
         // Tab 4: Strings
         private ListView lstStrings;
         private NumericUpDown numMinLen;
+        private TextBox txtStringsFilter;
         private Button btnStringsScan;
         private Button btnSaveStrings;
         private Label lblStringsStatus;
-        private List<StringResult> _stringData = new List<StringResult>();
+        private List<StringResult> _allStringData = new List<StringResult>();
+        private List<StringResult> _filteredStringData = new List<StringResult>();
 
         // Shared
         private ProgressBar progressBar;
@@ -199,15 +201,24 @@ namespace Ext2Read.WinForms
             numMinLen = new NumericUpDown { Location = new Point(85, 12), Width = 50, Minimum = 3, Maximum = 100, Value = 4 };
             tabStrings.Controls.Add(numMinLen);
 
+            tabStrings.Controls.Add(numMinLen);
+
             btnStringsScan = new Button { Text = "Extract Strings", Location = new Point(150, 10), Width = 120 };
             btnStringsScan.Click += BtnStringsScan_Click;
             tabStrings.Controls.Add(btnStringsScan);
 
-            btnSaveStrings = new Button { Text = "Save to File", Location = new Point(280, 10), Width = 100 };
+            var lblFilter = new Label { Text = "Filter:", Location = new Point(280, 15), AutoSize = true };
+            tabStrings.Controls.Add(lblFilter);
+
+            txtStringsFilter = new TextBox { Location = new Point(320, 12), Width = 150 };
+            txtStringsFilter.TextChanged += TxtStringsFilter_TextChanged;
+            tabStrings.Controls.Add(txtStringsFilter);
+
+            btnSaveStrings = new Button { Text = "Save to File", Location = new Point(480, 10), Width = 100 };
             btnSaveStrings.Click += BtnSaveStrings_Click;
             tabStrings.Controls.Add(btnSaveStrings);
 
-            lblStringsStatus = new Label { Text = "Ready", Location = new Point(400, 15), AutoSize = true };
+            lblStringsStatus = new Label { Text = "Ready", Location = new Point(590, 15), AutoSize = true };
             tabStrings.Controls.Add(lblStringsStatus);
 
             lstStrings = new ListView
@@ -664,7 +675,10 @@ namespace Ext2Read.WinForms
 
             btnStringsScan.Enabled = false;
             lstStrings.VirtualListSize = 0;
-            _stringData.Clear();
+            _allStringData.Clear();
+            _filteredStringData.Clear();
+            txtStringsFilter.Text = ""; // Reset filter
+            
             lblStatus.Text = "Extracting strings...";
             lblStringsStatus.Text = "Scanning...";
 
@@ -673,10 +687,14 @@ namespace Ext2Read.WinForms
             try
             {
                 int minLen = (int)numMinLen.Value;
-                _stringData = await Scanner.ExtractStringsAsync(file, minLen, progress);
-                lstStrings.VirtualListSize = _stringData.Count;
-                lblStatus.Text = $"Found {_stringData.Count} strings.";
-                lblStringsStatus.Text = $"Found {_stringData.Count} strings.";
+                _allStringData = await Scanner.ExtractStringsAsync(file, minLen, progress);
+                
+                // Initial: No filter, so filtered = all
+                _filteredStringData = new List<StringResult>(_allStringData);
+                
+                lstStrings.VirtualListSize = _filteredStringData.Count;
+                lblStatus.Text = $"Found {_allStringData.Count} strings.";
+                lblStringsStatus.Text = $"Found {_allStringData.Count} strings.";
             }
             catch (Exception ex)
             {
@@ -689,10 +707,34 @@ namespace Ext2Read.WinForms
             }
         }
 
+        private void TxtStringsFilter_TextChanged(object? sender, EventArgs e)
+        {
+            ApplyStringsFilter();
+        }
+
+        private void ApplyStringsFilter()
+        {
+            string filter = txtStringsFilter.Text.ToLower();
+            if (string.IsNullOrWhiteSpace(filter))
+            {
+                _filteredStringData = new List<StringResult>(_allStringData);
+            }
+            else
+            {
+                _filteredStringData = _allStringData
+                    .Where(s => s.Text.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+            }
+
+            lstStrings.VirtualListSize = _filteredStringData.Count;
+            lstStrings.Invalidate(); // Force redraw
+            lblStringsStatus.Text = $"Showing {_filteredStringData.Count} / {_allStringData.Count}";
+        }
+
         private void LstStrings_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
         {
-            if (_stringData == null || e.ItemIndex >= _stringData.Count) return;
-            var item = _stringData[e.ItemIndex];
+            if (_filteredStringData == null || e.ItemIndex >= _filteredStringData.Count) return;
+            var item = _filteredStringData[e.ItemIndex];
             e.Item = new ListViewItem(item.Offset.ToString());
             e.Item.SubItems.Add("0x" + item.Offset.ToString("X"));
             e.Item.SubItems.Add(item.Text);
@@ -700,7 +742,8 @@ namespace Ext2Read.WinForms
 
         private void BtnSaveStrings_Click(object? sender, EventArgs e)
         {
-            if (_stringData.Count == 0)
+            // Save FILTERED list, so user can export what they see
+            if (_filteredStringData.Count == 0)
             {
                 MessageBox.Show("No strings to save.");
                 return;
@@ -715,10 +758,11 @@ namespace Ext2Read.WinForms
                         using (var sw = new StreamWriter(sfd.FileName))
                         {
                             sw.WriteLine($"Strings Dump for: {txtInputFile.Text}");
-                            sw.WriteLine($"Count: {_stringData.Count}");
+                            sw.WriteLine($"Filter: {(string.IsNullOrWhiteSpace(txtStringsFilter.Text) ? "[None]" : txtStringsFilter.Text)}");
+                            sw.WriteLine($"Count: {_filteredStringData.Count}");
                             sw.WriteLine("--------------------------------------------------");
                             
-                            foreach (var s in _stringData)
+                            foreach (var s in _filteredStringData)
                             {
                                 sw.WriteLine($"{s.Offset}\t0x{s.Offset:X}\t{s.Text}");
                             }
