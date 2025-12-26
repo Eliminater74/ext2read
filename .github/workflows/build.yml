@@ -21,14 +21,14 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore Dependencies
-        run: dotnet restore i:\GITHUB\Projects\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools.sln
+        run: dotnet restore ./PreFusion_Firmware_Tools/PreFusionFirmwareTools.sln
 
       - name: Build (Release)
-        run: dotnet build i:\GITHUB\Projects\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools.sln --configuration Release --no-restore
+        run: dotnet build ./PreFusion_Firmware_Tools/PreFusionFirmwareTools.sln --configuration Release --no-restore
 
       - name: Publish WinForms App
         run: |
-          dotnet publish i:\GITHUB\Projects\PreFusion_Firmware_Tools\PreFusion_Firmware_Tools\PreFusion.WinForms\PreFusion.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
+          dotnet publish ./PreFusion_Firmware_Tools/PreFusion.WinForms/PreFusion.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
 
         Compress-Archive -Path ./publish/* -DestinationPath ./PreFusion_Firmware_Tools_win-x64.zip
 
