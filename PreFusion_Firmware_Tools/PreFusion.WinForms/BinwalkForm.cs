@@ -26,6 +26,8 @@ namespace Ext2Read.WinForms
         private ListView lstResults;
         private Button btnScan;
         private Button btnExtractAll;
+        private Button btnClear;
+        private Button btnSaveLog;
         private CheckBox chkRecursive;
         private CheckBox chkOpcodes;
         private NumericUpDown numDepth;
@@ -90,6 +92,14 @@ namespace Ext2Read.WinForms
 
             numDepth = new NumericUpDown { Location = new Point(585, 12), Width = 40, Minimum = 1, Maximum = 5, Value = 2 };
             tabSig.Controls.Add(numDepth);
+
+            btnClear = new Button { Text = "Clear", Location = new Point(635, 10), Width = 50 };
+            btnClear.Click += BtnClear_Click;
+            tabSig.Controls.Add(btnClear);
+
+            btnSaveLog = new Button { Text = "Save Log", Location = new Point(690, 10), Width = 65 };
+            btnSaveLog.Click += BtnSaveLog_Click;
+            tabSig.Controls.Add(btnSaveLog);
 
             lstResults = new ListView
             {
@@ -514,6 +524,60 @@ namespace Ext2Read.WinForms
                     if (read == 0) break;
                     await dst.WriteAsync(buffer, 0, read);
                     remaining -= read;
+                }
+            }
+        }
+
+        private void BtnClear_Click(object? sender, EventArgs e)
+        {
+            txtInputFile.Text = "";
+            lstResults.Items.Clear();
+            lstSearch.Items.Clear();
+            if (_entropyData != null) _entropyData.Clear();
+            pnlEntropy.Invalidate();
+            
+            lblStatus.Text = "Cleared.";
+            progressBar.Value = 0;
+            lblEntropyStatus.Text = "Not analyzed.";
+        }
+
+        private void BtnSaveLog_Click(object? sender, EventArgs e)
+        {
+            if (lstResults.Items.Count == 0)
+            {
+                MessageBox.Show("No results to save.");
+                return;
+            }
+
+            using (var sfd = new SaveFileDialog { Filter = "Text Files|*.txt", FileName = "binwalk_log.txt" })
+            {
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        using (var sw = new StreamWriter(sfd.FileName))
+                        {
+                            sw.WriteLine($"BinWalk Scan Results for: {txtInputFile.Text}");
+                            sw.WriteLine($"Date: {DateTime.Now}");
+                            sw.WriteLine("--------------------------------------------------");
+                            sw.WriteLine(String.Format("{0,-15} {1,-15} {2}", "DECIMAL", "HEX", "DESCRIPTION"));
+                            sw.WriteLine("--------------------------------------------------");
+
+                            foreach (ListViewItem item in lstResults.Items)
+                            {
+                                var res = (ScanResult)item.Tag!;
+                                sw.WriteLine(String.Format("{0,-15} {1,-15} {2}", 
+                                    res.Offset, 
+                                    "0x" + res.Offset.ToString("X"), 
+                                    res.Description));
+                            }
+                        }
+                        MessageBox.Show("Log saved successfully.");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Error saving log: " + ex.Message);
+                    }
                 }
             }
         }
