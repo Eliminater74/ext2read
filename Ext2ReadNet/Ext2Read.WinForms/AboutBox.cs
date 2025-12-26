@@ -13,7 +13,7 @@ namespace Ext2Read.WinForms
 
         private void InitializeComponent()
         {
-            this.Text = "About Ext2Read .NET";
+            this.Text = "About PreFusion Firmware Tools";
             this.Size = new System.Drawing.Size(450, 350);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -25,7 +25,7 @@ namespace Ext2Read.WinForms
             // Title
             var lblTitle = new Label
             {
-                Text = "Ext2Read .NET",
+                Text = "PreFusion Firmware Tools",
                 Font = new System.Drawing.Font("Segoe UI", 16F, System.Drawing.FontStyle.Bold),
                 AutoSize = true,
                 Location = new System.Drawing.Point(20, y)

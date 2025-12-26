@@ -507,7 +507,7 @@ namespace Ext2Read.WinForms
             // 
             this.aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
             this.aboutToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.aboutToolStripMenuItem.Text = "&About Ext2Read .NET";
+            this.aboutToolStripMenuItem.Text = "&About PreFusion Firmware Tools";
             this.aboutToolStripMenuItem.Click += new System.EventHandler(this.aboutToolStripMenuItem_Click);
 
             // 
@@ -568,7 +568,7 @@ namespace Ext2Read.WinForms
             this.Controls.Add(this.menuStrip1);
             this.MainMenuStrip = this.menuStrip1;
             this.Name = "MainForm";
-            this.Text = "Ext2Read .NET";
+            this.Text = "PreFusion Firmware Tools v1.0.0";
             this.Load += new System.EventHandler(this.MainForm_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
