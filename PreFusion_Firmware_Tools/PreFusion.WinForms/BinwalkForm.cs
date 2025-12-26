@@ -15,10 +15,20 @@ namespace Ext2Read.WinForms
         private Button btnBrowse;
         private TabControl tabControl;
 
+        // Tab 3: Search
+        private TextBox txtSearch;
+        private RadioButton rdoText;
+        private RadioButton rdoHex;
+        private Button btnSearch;
+        private ListView lstSearch;
+
         // Tab 1: Signatures
         private ListView lstResults;
         private Button btnScan;
         private Button btnExtractAll;
+        private CheckBox chkRecursive;
+        private CheckBox chkOpcodes;
+        private NumericUpDown numDepth;
         private ContextMenuStrip contextMenu;
 
         // Tab 2: Entropy
@@ -69,6 +79,18 @@ namespace Ext2Read.WinForms
             btnExtractAll.Click += BtnExtractAll_Click;
             tabSig.Controls.Add(btnExtractAll);
 
+            chkRecursive = new CheckBox { Text = "Recursive (-M)", Location = new Point(270, 14), AutoSize = true };
+            tabSig.Controls.Add(chkRecursive);
+            
+            chkOpcodes = new CheckBox { Text = "Scan Opcodes (-A)", Location = new Point(410, 14), AutoSize = true };
+            tabSig.Controls.Add(chkOpcodes);
+
+            var lblDepth = new Label { Text = "Depth:", Location = new Point(540, 15), AutoSize = true };
+            tabSig.Controls.Add(lblDepth);
+
+            numDepth = new NumericUpDown { Location = new Point(585, 12), Width = 40, Minimum = 1, Maximum = 5, Value = 2 };
+            tabSig.Controls.Add(numDepth);
+
             lstResults = new ListView
             {
                 Location = new Point(10, 45),
@@ -107,12 +129,47 @@ namespace Ext2Read.WinForms
                 Width = 730,
                 Height = 400,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.White
+                BackColor = Color.White,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
             pnlEntropy.Paint += PnlEntropy_Paint;
             pnlEntropy.Resize += (s, e) => pnlEntropy.Invalidate(); // Redraw on resize
             tabEntropy.Controls.Add(pnlEntropy);
 
+            // --- Tab 3: Search (Raw) ---
+            var tabSearch = new TabPage("Raw Search");
+            tabControl.TabPages.Add(tabSearch);
+
+            var lblSearch = new Label { Text = "Search Pattern:", Location = new Point(10, 15), AutoSize = true };
+            tabSearch.Controls.Add(lblSearch);
+
+            txtSearch = new TextBox { Location = new Point(100, 12), Width = 300 };
+            tabSearch.Controls.Add(txtSearch);
+
+            rdoText = new RadioButton { Text = "Text", Location = new Point(410, 11), Checked = true, AutoSize = true };
+            tabSearch.Controls.Add(rdoText);
+
+            rdoHex = new RadioButton { Text = "Hex (e.g. 1F 8B)", Location = new Point(470, 11), AutoSize = true };
+            tabSearch.Controls.Add(rdoHex);
+
+            btnSearch = new Button { Text = "Find", Location = new Point(580, 10), Width = 80 };
+            btnSearch.Click += BtnSearch_Click;
+            tabSearch.Controls.Add(btnSearch);
+
+            lstSearch = new ListView
+            {
+                Location = new Point(10, 45),
+                Width = 730,
+                Height = 400,
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = true,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+            };
+            lstSearch.Columns.Add("Offset", 100);
+            lstSearch.Columns.Add("Description", 500);
+            tabSearch.Controls.Add(lstSearch);
+            
             // Footer
             progressBar = new ProgressBar { Location = new Point(10, 540), Width = 560, Height = 15 };
             this.Controls.Add(progressBar);
@@ -123,7 +180,9 @@ namespace Ext2Read.WinForms
 
         // --- Event Handlers ---
 
-        private void BtnBrowse_Click(object sender, EventArgs e)
+        // --- Event Handlers ---
+        
+        private void BtnBrowse_Click(object? sender, EventArgs e)
         {
             using (var ofd = new OpenFileDialog())
             {
@@ -134,7 +193,7 @@ namespace Ext2Read.WinForms
             }
         }
 
-        private async void BtnScan_Click(object sender, EventArgs e)
+        private async void BtnScan_Click(object? sender, EventArgs e)
         {
             string file = txtInputFile.Text;
             if (!File.Exists(file)) return;
@@ -147,7 +206,14 @@ namespace Ext2Read.WinForms
 
             try
             {
-                var results = await Scanner.ScanAsync(file, progress);
+                // Filter signatures based on CheckBox
+                var sigs = Scanner.DefaultSignatures.ToList();
+                if (!chkOpcodes.Checked)
+                {
+                    sigs.RemoveAll(s => s.Name.Contains("Loop/Branch"));
+                }
+
+                var results = await Scanner.ScanAsync(file, progress, sigs);
 
                 lstResults.BeginUpdate();
                 foreach (var res in results)
@@ -172,7 +238,7 @@ namespace Ext2Read.WinForms
             }
         }
 
-        private async void BtnEntropy_Click(object sender, EventArgs e)
+        private async void BtnEntropy_Click(object? sender, EventArgs e)
         {
             string file = txtInputFile.Text;
             if (!File.Exists(file)) return;
@@ -210,7 +276,7 @@ namespace Ext2Read.WinForms
             }
         }
 
-        private void PnlEntropy_Paint(object sender, PaintEventArgs e)
+        private void PnlEntropy_Paint(object? sender, PaintEventArgs e)
         {
             if (_entropyData == null || _entropyData.Count < 2) return;
 
@@ -255,7 +321,62 @@ namespace Ext2Read.WinForms
             // Low/varying = Code/Text/Padding
         }
 
-        private async void BtnExtractAll_Click(object sender, EventArgs e)
+        private async void BtnSearch_Click(object? sender, EventArgs e)
+        {
+            string file = txtInputFile.Text;
+            if (!File.Exists(file)) return;
+
+            btnSearch.Enabled = false;
+            lstSearch.Items.Clear();
+            lblStatus.Text = "Searching...";
+
+            var progress = new Progress<float>(p => progressBar.Value = (int)(p * 100));
+            
+            try 
+            {
+                byte[] pattern = null;
+                string desc = "";
+
+                if (rdoText.Checked)
+                {
+                    pattern = System.Text.Encoding.ASCII.GetBytes(txtSearch.Text);
+                    desc = "Text Search";
+                }
+                else
+                {
+                    // Hex String to Byte[]
+                    string hex = txtSearch.Text.Replace(" ", "").Replace("0x", "");
+                    if (hex.Length % 2 != 0) throw new Exception("Invalid Hex String");
+                    pattern = new byte[hex.Length / 2];
+                    for (int i = 0; i < hex.Length; i += 2)
+                        pattern[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+                    desc = "Hex Search";
+                }
+
+                var results = await Scanner.SearchCustomAsync(file, pattern, desc, progress);
+                
+                lstSearch.BeginUpdate();
+                foreach (var res in results)
+                {
+                    var item = new ListViewItem(res.Offset.ToString());
+                    item.SubItems.Add(res.Description);
+                    lstSearch.Items.Add(item);
+                }
+                lstSearch.EndUpdate();
+                lblStatus.Text = $"Found {results.Count} matches.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Search Error: " + ex.Message);
+            }
+            finally
+            {
+                btnSearch.Enabled = true;
+                progressBar.Value = 0;
+            }
+        }
+
+        private async void BtnExtractAll_Click(object? sender, EventArgs e)
         {
             if (lstResults.Items.Count == 0) return;
 
@@ -264,67 +385,17 @@ namespace Ext2Read.WinForms
                 if (fbd.ShowDialog() == DialogResult.OK)
                 {
                     btnExtractAll.Enabled = false;
-                    lblStatus.Text = "Extracting all...";
-                    int count = 0;
-
+                    lblStatus.Text = "Extracting...";
+                    
                     try
                     {
-                        using (var fs = new FileStream(txtInputFile.Text, FileMode.Open, FileAccess.Read))
-                        {
-                            foreach (ListViewItem item in lstResults.Items)
-                            {
-                                var res = (ScanResult)item.Tag;
-                                string filename = $"0x{res.Offset:X}_{res.Description.Split(' ')[0]}.bin";
-                                // Clean filename
-                                foreach (char c in Path.GetInvalidFileNameChars()) filename = filename.Replace(c, '_');
-
-                                string outPath = Path.Combine(fbd.SelectedPath, filename);
-
-                                // Extract Logic: Dump from Offset to WHERE?
-                                // BinWalk extracts known types by parsing header (e.g. ZIP size).
-                                // We don't have parsers for size yet.
-                                // Default behavior: Dump until EOF (or reasonable limit?).
-                                // Users often want "carving".
-                                // For now, let's dump until EOF, but maybe in a loop this is huge duplicative data (Matryoshka).
-                                // This "Extract All" is dangerous if we dump 1GB 50 times.
-                                // Let's dump a FIXED amount (e.g. preview) or ask user?
-                                // Official BinWalk extracts properly. 
-                                // Since we lack parsers, let's warn the user or just implement single extraction correctly first.
-                                // But I can't leave "Extract All" broken.
-                                // I will revert to "Extract Item" logic in loop: Dump until EOF (warning: disk space!).
-                                // Wait, simple workaround: Dump until NEXT signature offset?
-                                // That's a common heuristic.
-
-                                long nextOffset = fs.Length;
-                                if (item.Index < lstResults.Items.Count - 1)
-                                {
-                                    var nextRes = (ScanResult)lstResults.Items[item.Index + 1].Tag;
-                                    nextOffset = nextRes.Offset;
-                                }
-
-                                long size = nextOffset - res.Offset;
-                                if (size <= 0) continue; // Should not happen 
-
-                                byte[] buffer = new byte[8192];
-                                long remaining = size;
-                                fs.Seek(res.Offset, SeekOrigin.Begin);
-
-                                using (var outFs = new FileStream(outPath, FileMode.Create, FileAccess.Write))
-                                {
-                                    while (remaining > 0)
-                                    {
-                                        int toRead = (int)Math.Min(buffer.Length, remaining);
-                                        int read = await fs.ReadAsync(buffer, 0, toRead);
-                                        if (read == 0) break;
-                                        await outFs.WriteAsync(buffer, 0, read);
-                                        remaining -= read;
-                                    }
-                                }
-                                count++;
-                                lblStatus.Text = $"Extracted {count}/{lstResults.Items.Count}";
-                            }
-                        }
-                        MessageBox.Show($"Extracted {count} items.");
+                        var scanResults = lstResults.Items.Cast<ListViewItem>().Select(i => (ScanResult)i.Tag!).ToList();
+                        int depth = chkRecursive.Checked ? (int)numDepth.Value : 0;
+                        
+                        await ExtractRecursiveAsync(txtInputFile.Text, fbd.SelectedPath, scanResults, depth);
+                        
+                        MessageBox.Show("Extraction complete.");
+                        lblStatus.Text = "Extraction complete.";
                     }
                     catch (Exception ex)
                     {
@@ -338,7 +409,116 @@ namespace Ext2Read.WinForms
             }
         }
 
-        private void ExtractItem_Click(object sender, EventArgs e)
+        // Recursive Extraction Engine
+        private async Task ExtractRecursiveAsync(string inputFile, string outputDir, List<ScanResult> results, int depth)
+        {
+            if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
+
+            using (var fs = new FileStream(inputFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                for (int i = 0; i < results.Count; i++)
+                {
+                    var res = results[i];
+                    long nextOffset = (i < results.Count - 1) ? results[i+1].Offset : fs.Length;
+                    long size = nextOffset - res.Offset;
+                    if (size <= 0) continue;
+
+                    string cleanName = res.Description.Split(' ')[0];
+                    foreach(char c in Path.GetInvalidFileNameChars()) cleanName = cleanName.Replace(c, '_');
+                    
+                    // Create organized folder for this extraction? Binwalk usually dumps to folder `_filename.extracted`
+                    // Here we are inside a loop of signatures.
+                    // Let's name the file: offset_name.bin
+                    string outName = $"{res.Offset:X}_{cleanName}.bin";
+                    string outPath = Path.Combine(outputDir, outName);
+
+                    // 1. Carve
+                    await CarveFileAsync(fs, res.Offset, size, outPath);
+
+                    // 2. Recurse?
+                    if (depth > 0)
+                    {
+                        // Try to decompress known types to allow deeper scanning
+                        string decompressedPath = Path.Combine(outputDir, $"{outName}.extracted");
+                        bool isCompressed = false;
+
+                        try
+                        {
+                            if (cleanName.IndexOf("GZIP", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                // Decompress GZIP
+                                using (var originalFs = new FileStream(outPath, FileMode.Open, FileAccess.Read))
+                                using (var gz = new System.IO.Compression.GZipStream(originalFs, System.IO.Compression.CompressionMode.Decompress))
+                                using (var target = new FileStream(decompressedPath, FileMode.Create))
+                                {
+                                    await gz.CopyToAsync(target);
+                                }
+                                isCompressed = true;
+                            }
+                            else if (cleanName.IndexOf("Zip", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                // Zip is complex as it is an archive, not a stream. 
+                                // Binwalk simply extracts it. 
+                                // For now, we rely on the carved file being the zip itself.
+                                // We might need to unzip it to a folder?
+                                // Let's skip complex Zip recursion for this iteration and focus on streams.
+                            }
+                        }
+                        catch 
+                        { 
+                            // Decompression failed (corrupt or partial), ignore
+                        }
+
+                        // If we successfully decompressed, scan the decompressed file
+                        if (isCompressed && File.Exists(decompressedPath))
+                        {
+                            var newResults = await Scanner.ScanAsync(decompressedPath);
+                            if (newResults.Count > 0)
+                            {
+                                string subDir = Path.Combine(outputDir, $"_{outName}.extracted");
+                                await ExtractRecursiveAsync(decompressedPath, subDir, newResults, depth - 1);
+                            }
+                        }
+                        else
+                        {
+                            // Try scanning the carved file directly (in case it is a filesystem like SquashFS)
+                            // Filesystems are not "compressed streams" in the same way, but they contain files.
+                            // Binwalk usually mounts them or runs unsquashfs. We can't easily do that natively in C#.
+                            // But we CAN scan them for signatures inside the FS image? 
+                            // Yes, that's "Search inside".
+                            
+                            var newResults = await Scanner.ScanAsync(outPath);
+                            if (newResults.Count > 0)
+                            {
+                                string subDir = Path.Combine(outputDir, $"_{outName}.rec");
+                                await ExtractRecursiveAsync(outPath, subDir, newResults, depth - 1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private async Task CarveFileAsync(FileStream src, long offset, long length, string dest)
+        {
+            byte[] buffer = new byte[8192];
+            src.Seek(offset, SeekOrigin.Begin);
+            long remaining = length;
+            
+            using (var dst = new FileStream(dest, FileMode.Create, FileAccess.Write))
+            {
+                while (remaining > 0)
+                {
+                    int toRead = (int)Math.Min(buffer.Length, remaining);
+                    int read = await src.ReadAsync(buffer, 0, toRead);
+                    if (read == 0) break;
+                    await dst.WriteAsync(buffer, 0, read);
+                    remaining -= read;
+                }
+            }
+        }
+
+        private void ExtractItem_Click(object? sender, EventArgs e)
         {
             if (lstResults.SelectedItems.Count == 0) return;
             var res = (ScanResult)lstResults.SelectedItems[0].Tag;
