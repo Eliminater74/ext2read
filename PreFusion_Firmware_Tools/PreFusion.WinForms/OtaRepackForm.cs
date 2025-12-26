@@ -209,6 +209,65 @@ namespace Ext2Read.WinForms
                 }
             }
 
+            // Update dynamic_partitions_op_list if exists
+            var partitionSizes = new System.Collections.Generic.Dictionary<string, long>();
+            foreach (var inputFile in filesToProcess)
+            {
+                string partName = Path.GetFileNameWithoutExtension(inputFile);
+                long size = new FileInfo(inputFile).Length;
+                partitionSizes[partName] = size;
+            }
+
+            string opListPath = "";
+            if (Directory.Exists(input)) opListPath = Path.Combine(input, "dynamic_partitions_op_list");
+            else opListPath = Path.Combine(Path.GetDirectoryName(filesToProcess[0])!, "dynamic_partitions_op_list");
+
+            if (File.Exists(opListPath))
+            {
+                txtLog.AppendText("Updating dynamic_partitions_op_list...\r\n");
+                try 
+                {
+                    string[] lines = File.ReadAllLines(opListPath);
+                    var newLines = new System.Collections.Generic.List<string>();
+                    foreach (var line in lines)
+                    {
+                        if (line.TrimStart().StartsWith("resize"))
+                        {
+                            // Format: resize <name> <size>
+                            var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length >= 3)
+                            {
+                                string pName = parts[1];
+                                if (partitionSizes.ContainsKey(pName))
+                                {
+                                    long newSize = partitionSizes[pName];
+                                    newLines.Add($"resize {pName} {newSize}");
+                                    txtLog.AppendText($"  -> Updated {pName} to {newSize}\r\n");
+                                }
+                                else
+                                {
+                                    newLines.Add(line);
+                                }
+                            }
+                            else
+                            {
+                                newLines.Add(line);
+                            }
+                        }
+                        else
+                        {
+                            newLines.Add(line);
+                        }
+                    }
+                    
+                    File.WriteAllLines(Path.Combine(outputDir, "dynamic_partitions_op_list"), newLines);
+                }
+                catch (Exception ex)
+                {
+                     txtLog.AppendText($"Warning: Failed to update op_list: {ex.Message}\r\n");
+                }
+            }
+
             lblStatus.Text = "Batch Repack Complete.";
             progressBar.Value = 100;
             MessageBox.Show($"Batch processing complete.\nProcessed {total} files.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
