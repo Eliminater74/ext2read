@@ -69,6 +69,15 @@ namespace Ext2Read.Core.Binwalk
             new Signature { Name = "U-Boot FIT", Magic = new byte[] { 0xD0, 0x0D, 0xFE, 0xED } }, 
             new Signature { Name = "TRX Header", Magic = new byte[] { 0x48, 0x44, 0x52, 0x30 } },
 
+            // Crypto / Certificates
+            new Signature { Name = "PEM Certificate", Magic = Encoding.ASCII.GetBytes("-----BEGIN CERTIFICATE-----") },
+            new Signature { Name = "PEM Private Key", Magic = Encoding.ASCII.GetBytes("-----BEGIN PRIVATE KEY-----") },
+            new Signature { Name = "PEM RSA Private Key", Magic = Encoding.ASCII.GetBytes("-----BEGIN RSA PRIVATE KEY-----") },
+            new Signature { Name = "PEM Public Key", Magic = Encoding.ASCII.GetBytes("-----BEGIN PUBLIC KEY-----") },
+            new Signature { Name = "OpenSSL Encrypted Data", Magic = new byte[] { 0x53, 0x61, 0x6C, 0x74, 0x65, 0x64, 0x5F, 0x5F } }, // "Salted__"
+            new Signature { Name = "LUKS Encrypted Volume", Magic = new byte[] { 0x4C, 0x55, 0x4B, 0x53, 0xBA, 0xBE } },
+            new Signature { Name = "Mcrypt Encrypted File", Magic = new byte[] { 0x00, 0x6D, 0x03 } },
+
             // Opcodes (Simplified)
             new Signature { Name = "ARM LE Loop/Branch", Magic = new byte[] { 0xFE, 0xFF, 0xFF, 0xEA } }, 
             new Signature { Name = "ARM BE Loop/Branch", Magic = new byte[] { 0xEA, 0xFF, 0xFF, 0xFE } },
