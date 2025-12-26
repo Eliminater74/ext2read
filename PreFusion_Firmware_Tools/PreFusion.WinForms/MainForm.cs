@@ -43,7 +43,19 @@ namespace Ext2Read.WinForms
             InitializeContextMenu();
             InitializeSearchStrip();
             InitializeCloseImageMenu();
+            InitializeHelpMenu(); // Add Update Menu
             _diskManager = new DiskManager();
+
+            // Auto-check on startup
+            if (AppSettings.Get("AutoCheckUpdates", "true") == "true")
+            {
+                 // Fire and forget, don't block constructor
+                _ = Task.Run(async () => 
+                {
+                    await Task.Delay(3000); // Small delay to let UI show
+                    this.Invoke((MethodInvoker)async delegate { await CheckForUpdates(false); });
+                });
+            }
         }
 
         private async void MainForm_Load(object sender, EventArgs e)
@@ -643,6 +655,75 @@ namespace Ext2Read.WinForms
 
             // Bind to ListView
             this.listView1.ContextMenuStrip = this.contextMenuStrip1;
+        }
+
+        private void InitializeHelpMenu()
+        {
+            // Find existing MenuStrip or add new
+            MenuStrip ms = this.MainMenuStrip;
+            if (ms == null) return;
+            
+            // Checks if "Help" menu exists
+            ToolStripMenuItem helpMenu = null;
+            foreach(ToolStripItem item in ms.Items)
+            {
+                if (item is ToolStripMenuItem menuItem && menuItem.Text == "Help") 
+                { 
+                    helpMenu = menuItem; 
+                    break; 
+                }
+            }
+
+            if (helpMenu == null)
+            {
+                helpMenu = new ToolStripMenuItem("Help");
+                ms.Items.Add(helpMenu);
+            }
+
+            // Separator before About (if items exist)
+            if (helpMenu.DropDownItems.Count > 0)
+            {
+                 helpMenu.DropDownItems.Add(new ToolStripSeparator());
+            }
+
+            // Auto-Check Toggle
+            var mnuAutoCheck = new ToolStripMenuItem("Automatically check for updates");
+            mnuAutoCheck.CheckOnClick = true;
+            mnuAutoCheck.Checked = AppSettings.Get("AutoCheckUpdates", "true") == "true";
+            mnuAutoCheck.Click += (s, e) => 
+            {
+                AppSettings.Set("AutoCheckUpdates", mnuAutoCheck.Checked ? "true" : "false");
+            };
+            helpMenu.DropDownItems.Add(mnuAutoCheck);
+
+            // Manual Check
+            var mnuCheckUpdate = new ToolStripMenuItem("Check for Updates...");
+            mnuCheckUpdate.Click += async (s, e) => await CheckForUpdates(true);
+            helpMenu.DropDownItems.Add(mnuCheckUpdate);
+        }
+
+        private async Task CheckForUpdates(bool isManual)
+        {
+            try
+            {
+                var release = await PreFusion.Core.UpdateChecker.CheckForUpdateAsync();
+                
+                if (release != null)
+                {
+                    using (var dlg = new UpdateDialog(release))
+                    {
+                        dlg.ShowDialog(this);
+                    }
+                }
+                else if (isManual)
+                {
+                    MessageBox.Show("You are running the latest version.", "Up to Date", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isManual) MessageBox.Show("Failed to check for updates: " + ex.Message);
+            }
         }
 
         private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)

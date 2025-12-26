@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -20,6 +20,19 @@ namespace Ext2Read.WinForms
         }
 
         public bool AutoScanOnStartup { get; set; } = true;
+        public Dictionary<string, string> Preferences { get; set; } = new Dictionary<string, string>();
+
+        public static string Get(string key, string defaultValue)
+        {
+            if (Instance.Preferences.TryGetValue(key, out var val)) return val;
+            return defaultValue;
+        }
+
+        public static void Set(string key, string value)
+        {
+            Instance.Preferences[key] = value;
+            Instance.Save();
+        }
 
         public static AppSettings Load()
         {
