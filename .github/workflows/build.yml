@@ -42,7 +42,16 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ./Installer/setup.iss
 
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PreFusion_Build_Package
+          path: |
+            ./PreFusion_Firmware_Tools_win-x64.zip
+            ./Output/PreFusion_Setup_win-x64.exe
+
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
           files: |
