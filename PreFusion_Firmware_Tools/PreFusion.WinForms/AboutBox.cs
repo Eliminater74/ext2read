@@ -58,11 +58,11 @@ namespace Ext2Read.WinForms
             // GitHub Link
             var linkGithub = new LinkLabel
             {
-                Text = "https://github.com/Eliminater74/ext2read",
+                Text = "https://github.com/Eliminater74/PreFusion-Firmware-Tools",
                 AutoSize = true,
                 Location = new System.Drawing.Point(22, y)
             };
-            linkGithub.LinkClicked += (s, e) => OpenUrl("https://github.com/Eliminater74/ext2read");
+            linkGithub.LinkClicked += (s, e) => OpenUrl("https://github.com/Eliminater74/PreFusion-Firmware-Tools");
             this.Controls.Add(linkGithub);
             y += 40;
 
